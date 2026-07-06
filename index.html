@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>みのり村</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#2b2540;
+  --paper:#f8efd8;
+  --paper-d:#eadfc0;
+  --wood:#9c6b43;
+  --wood-d:#6e4a2e;
+  --grass:#5da144;
+  --grass-d:#3f7a30;
+  --path:#d9a066;
+  --gold:#ffcf4a;
+  --hp:#ff5a5a;
+  --lab:#4d7cc7;
+  --music:#c75d76;
+  --book:#4f9d69;
+  --white:#fffdf5;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0; padding:0;}
+body{
+  font-family:'DotGothic16', monospace;
+  background:var(--ink);
+  color:var(--ink);
+  min-height:100vh;
+  display:flex; flex-direction:column;
+  max-width:640px; margin:0 auto;
+  border-left:4px solid var(--ink); border-right:4px solid var(--ink);
+  user-select:none;
+}
+.num{font-family:'Press Start 2P', monospace; font-size:.72em; letter-spacing:0;}
+
+/* ---------- HUD ---------- */
+#hud{
+  background:var(--wood);
+  border-bottom:4px solid var(--ink);
+  padding:8px 10px 6px;
+  color:var(--white);
+  text-shadow:1px 1px 0 var(--ink);
+  position:sticky; top:0; z-index:20;
+}
+#hud .row{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+#villageName{font-size:18px; letter-spacing:1px;}
+#hudStats{display:flex; gap:10px; align-items:center; font-size:14px;}
+#xpWrap{display:flex; align-items:center; gap:6px; margin-top:5px;}
+#xpBar{
+  flex:1; height:12px; background:var(--wood-d);
+  border:3px solid var(--ink); position:relative; overflow:hidden;
+}
+#xpFill{
+  height:100%; background:repeating-linear-gradient(90deg, var(--gold) 0 8px, #f0b429 8px 16px);
+  width:0%; transition:width .5s steps(8);
+}
+#hearts span{font-size:15px; margin-right:1px;}
+.heart-on{color:var(--hp);} .heart-off{color:var(--wood-d);}
+#streakBadge{color:#ffb347;}
+.hudico{display:inline-flex; align-items:center; gap:3px;}
+
+/* ---------- SCENE ---------- */
+#scene{
+  position:relative; height:324px; overflow:hidden;
+  border-bottom:4px solid var(--ink);
+  image-rendering:pixelated;
+}
+#sky{position:absolute; inset:0; transition:background 2s;}
+.sky-morning #sky{background:linear-gradient(#ffd9a0, #aee3f5 70%);}
+.sky-day #sky{background:linear-gradient(#7ec8e3, #c8ecfb 75%);}
+.sky-evening #sky{background:linear-gradient(#f4a261, #e76f51 45%, #6d597a);}
+.sky-night #sky{background:linear-gradient(#12172e, #2b2540 80%);}
+#celestial{
+  position:absolute; width:34px; height:34px; left:70%; top:34px;
+  background:var(--gold);
+  box-shadow:0 0 0 5px rgba(255,207,74,.35);
+  border:3px solid var(--ink);
+}
+.sky-night #celestial{background:#e9e6f7; box-shadow:0 0 0 5px rgba(233,230,247,.25); left:20%;}
+.sky-evening #celestial{top:120px; left:12%;}
+.sky-morning #celestial{top:90px; left:80%;}
+.star{position:absolute; width:4px; height:4px; background:#fff; opacity:0;}
+.sky-night .star{opacity:.9; animation:twinkle 2.4s infinite steps(2);}
+@keyframes twinkle{50%{opacity:.25;}}
+.cloud{
+  position:absolute; height:14px; background:#fff; opacity:.92;
+  box-shadow:12px -8px 0 0 #fff, 28px 0 0 0 #fff, -12px 2px 0 0 #fff;
+  animation:drift linear infinite;
+}
+.sky-night .cloud{opacity:.18;}
+@keyframes drift{from{transform:translateX(-120px);} to{transform:translateX(760px);}}
+#ground{
+  position:absolute; left:0; right:0; bottom:0; height:120px;
+  background:linear-gradient(var(--grass), var(--grass) 55%, var(--grass-d));
+  border-top:4px solid var(--ink);
+}
+#pathStrip{
+  position:absolute; left:0; right:0; bottom:66px; height:18px;
+  background:repeating-linear-gradient(90deg, var(--path) 0 20px, #cf9257 20px 40px);
+  border-top:3px solid var(--ink); border-bottom:3px solid var(--ink);
+}
+.flower{position:absolute; z-index:1;}
+
+#buildings{
+  position:absolute; left:0; right:0; bottom:86px;
+  display:flex; justify-content:space-around; align-items:flex-end;
+  padding:0 6px;
+}
+#plots{position:absolute; left:0; right:0; bottom:0; height:66px; z-index:2;}
+.bwrap{
+  position:relative; text-align:center; cursor:pointer;
+  transition:transform .12s steps(2);
+}
+.bwrap:active{transform:translateY(3px);}
+.bwrap svg{display:block; margin:0 auto;}
+.smoke{position:absolute; left:50%; top:-8px; pointer-events:none;}
+.smoke i{
+  position:absolute; width:7px; height:7px; background:#e8e4da; opacity:0;
+  border:2px solid rgba(43,37,64,.35);
+}
+.done-today .smoke i{animation:puff 2.2s infinite steps(6);}
+.smoke i:nth-child(2){animation-delay:.7s; left:6px;}
+.smoke i:nth-child(3){animation-delay:1.4s; left:-6px;}
+@keyframes puff{
+  0%{opacity:0; transform:translateY(0) scale(1);}
+  20%{opacity:.95;}
+  100%{opacity:0; transform:translateY(-34px) scale(1.7);}
+}
+
+/* ---------- MAIN / TABS ---------- */
+#main{flex:1; background:var(--paper); padding:12px 12px 80px; overflow-y:auto;}
+.tabsec{display:none;}
+.tabsec.active{display:block;}
+h2.sec{
+  font-size:16px; margin:14px 0 8px; padding:4px 8px;
+  background:var(--ink); color:var(--paper); display:inline-block;
+  box-shadow:3px 3px 0 rgba(43,37,64,.3);
+}
+.card{
+  background:var(--white); border:3px solid var(--ink);
+  box-shadow:3px 3px 0 var(--ink);
+  padding:10px; margin-bottom:10px;
+}
+button{
+  font-family:'DotGothic16', monospace; font-size:14px;
+  background:var(--gold); color:var(--ink);
+  border:3px solid var(--ink); box-shadow:3px 3px 0 var(--ink);
+  padding:7px 12px; cursor:pointer;
+}
+button:active{transform:translate(2px,2px); box-shadow:1px 1px 0 var(--ink);}
+button:disabled{background:var(--paper-d); color:#9a8f76; box-shadow:3px 3px 0 #9a8f76;}
+button.ghost{background:var(--paper);}
+input[type=text]{
+  font-family:'DotGothic16', monospace; font-size:16px;
+  border:3px solid var(--ink); background:var(--white);
+  padding:7px 8px; width:100%;
+}
+.inline{display:flex; gap:8px; align-items:center;}
+.inline input{flex:1;}
+small.dim{color:#7a7060;}
+
+/* facility sheet */
+#sheetBack{
+  position:fixed; inset:0; background:rgba(43,37,64,.55);
+  display:none; z-index:40;
+}
+#sheet{
+  position:fixed; left:50%; transform:translateX(-50%);
+  bottom:-100%; width:min(600px, 94%); z-index:41;
+  background:var(--paper); border:4px solid var(--ink);
+  box-shadow:5px 5px 0 var(--ink);
+  padding:14px; transition:bottom .25s steps(6);
+}
+#sheet.open{bottom:14px;}
+#sheetBack.open{display:block;}
+#sheetTitle{font-size:18px; margin:0 0 4px;}
+#sheetMeta{font-size:13px; margin-bottom:8px;}
+.stagebar{display:flex; gap:3px; margin:6px 0 10px;}
+.stagebar i{width:14px; height:14px; border:2px solid var(--ink); background:var(--paper-d);}
+.stagebar i.on{background:var(--grass);}
+
+/* zukan */
+.cropgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:8px;}
+.crop{
+  background:var(--white); border:3px solid var(--ink);
+  box-shadow:2px 2px 0 var(--ink);
+  padding:8px 4px; text-align:center; cursor:pointer;
+}
+.crop .em{font-size:26px; display:block;}
+.crop.r0 .em{filter:grayscale(1) opacity(.35);}
+.crop .nm{font-size:11px; display:block; margin-top:3px; line-height:1.3;}
+.crop .rk{font-size:11px; display:inline-block; margin-top:3px; padding:0 5px; border:2px solid var(--ink);}
+.r1 .rk{background:#d29a68;} .r2 .rk{background:#cfd4dd;} .r3 .rk{background:var(--gold);}
+.r0 .rk{background:var(--paper-d); color:#9a8f76; border-color:#9a8f76;}
+ul.booklist{list-style:none; margin:0; padding:0;}
+ul.booklist li{
+  display:flex; align-items:center; gap:8px;
+  border-bottom:2px dashed var(--wood); padding:7px 2px; font-size:14px;
+}
+ul.booklist li .t{flex:1;}
+ul.booklist li.done .t{color:#7a7060;}
+.pill{font-size:11px; border:2px solid var(--ink); padding:1px 6px; background:var(--paper-d); cursor:pointer;}
+li.done .pill{background:var(--grass); color:#fff;}
+.fragpips{display:flex; gap:6px; margin:6px 0;}
+.fragpips i{width:18px; height:18px; border:3px solid var(--ink); background:var(--paper-d);}
+.fragpips i.on{background:#b57ee5;}
+.titletag{
+  display:inline-block; margin:3px 4px 0 0; padding:3px 8px;
+  background:#b57ee5; color:#fff; border:3px solid var(--ink);
+  font-size:12px; box-shadow:2px 2px 0 var(--ink);
+}
+
+/* tab bar */
+#tabbar{
+  position:fixed; bottom:0; left:50%; transform:translateX(-50%);
+  width:min(640px,100%); z-index:30;
+  display:flex; background:var(--wood);
+  border-top:4px solid var(--ink);
+}
+#tabbar button{
+  flex:1; border:none; box-shadow:none; background:var(--wood);
+  color:var(--paper); padding:10px 0 12px; font-size:13px;
+  border-right:3px solid var(--ink);
+}
+#tabbar button:last-child{border-right:none;}
+#tabbar button.on{background:var(--gold); color:var(--ink);}
+#tabbar button:active{transform:none;}
+
+/* dice overlay */
+#diceOverlay{
+  position:fixed; inset:0; z-index:60;
+  background:rgba(43,37,64,.72);
+  display:none; align-items:center; justify-content:center; flex-direction:column;
+}
+#diceOverlay.open{display:flex;}
+#die{
+  width:110px; height:110px; background:var(--white);
+  border:5px solid var(--ink); box-shadow:6px 6px 0 var(--ink);
+  display:flex; align-items:center; justify-content:center;
+  font-size:72px; line-height:1;
+}
+#die.rolling{animation:shake .12s infinite steps(2);}
+@keyframes shake{0%{transform:rotate(-6deg);}100%{transform:rotate(6deg);}}
+#dropCard{
+  margin-top:16px; background:var(--paper); border:4px solid var(--ink);
+  box-shadow:5px 5px 0 var(--ink); padding:12px 18px; text-align:center;
+  font-size:16px; display:none; max-width:86%;
+}
+#dropCard .big{font-size:30px; display:block; margin-bottom:4px;}
+#diceHint{color:var(--paper); margin-top:14px; font-size:13px; opacity:.85;}
+
+/* toast & confetti */
+#toast{
+  position:fixed; bottom:74px; left:50%; transform:translateX(-50%);
+  background:var(--ink); color:var(--paper); border:3px solid var(--paper);
+  padding:7px 14px; font-size:14px; z-index:70; display:none;
+  box-shadow:3px 3px 0 rgba(0,0,0,.4); max-width:88%; text-align:center;
+}
+.confetti{
+  position:fixed; width:8px; height:8px; z-index:65; pointer-events:none;
+  border:2px solid var(--ink);
+}
+/* ---------- FARM ---------- */
+#fence{position:absolute; left:0; right:0; bottom:0; height:20px; z-index:1;}
+#fence:before{content:''; position:absolute; left:0; right:0; top:7px; height:5px; background:#b07c4f; border-top:2px solid var(--ink); border-bottom:2px solid var(--ink);}
+#fence:after{content:''; position:absolute; inset:0; background:repeating-linear-gradient(90deg, #8c5a3c 0 8px, transparent 8px 52px);}
+#fence{z-index:4;}
+#chicken{position:absolute; bottom:68px; left:6%; z-index:1; animation:peck 26s linear infinite alternate;}
+@keyframes peck{from{left:6%;} to{left:86%;}}
+.plot{
+  position:absolute; bottom:12px; transform:translateX(-50%);
+  width:80px; height:30px; cursor:pointer;
+  background:repeating-linear-gradient(180deg, #7a4b2a 0 5px, #5f3a20 5px 9px);
+  border:3px solid var(--ink); border-bottom-width:2px;
+}
+.plot:before{content:''; position:absolute; left:0; right:0; top:0; height:3px; background:#a06a3e;}
+.plot .tuft{position:absolute; bottom:-3px; width:8px; height:6px; background:var(--grass-d); border:2px solid var(--ink); border-bottom:none;}
+.psign{
+  position:absolute; left:-8px; top:-27px; z-index:3; white-space:nowrap;
+  background:#e9d9ad; border:3px solid var(--ink); padding:0 5px;
+  font-size:11px; line-height:17px;
+}
+.psign:after{
+  content:''; position:absolute; left:9px; top:100%; width:6px; height:9px;
+  background:#8c5a3c; border:2px solid var(--ink); border-top:none;
+}
+.plot.done-today .psign{background:var(--gold);}
+.plot .cr{position:absolute; left:50%; bottom:2px; transform:translateX(-50%); line-height:1;}
+.plot.s2 .cr{font-size:16px;}
+.plot.s3 .cr{font-size:18px;}
+.plot.ready .cr{font-size:20px; animation:bob 1s infinite steps(2);}
+.plot.ready:after{content:'✨'; position:absolute; right:-8px; top:-13px; font-size:12px;}
+@keyframes bob{50%{transform:translate(-50%,-3px);}}
+.droplet{position:absolute; top:0; font-size:12px; pointer-events:none; animation:dropfall .7s steps(5) forwards;}
+@keyframes dropfall{from{transform:translateY(-30px); opacity:1;} to{transform:translateY(-2px); opacity:0;}}
+.waterpips{display:inline-flex; gap:4px; vertical-align:middle;}
+.waterpips i{width:12px; height:12px; border:2px solid var(--ink); background:var(--paper-d);}
+.waterpips i.on{background:#5ab6e8;}
+select{font-family:'DotGothic16',monospace; font-size:16px; border:3px solid var(--ink); background:var(--white); padding:6px;}
+@media (prefers-reduced-motion: reduce){
+  *{animation:none !important; transition:none !important;}
+}
+@media (max-width:420px){
+  #scene{height:308px;}
+  .bwrap svg{width:86px; height:86px;}
+  .plot{width:70px;}
+}
+</style>
+</head>
+<body class="sky-day">
+
+<div id="hud">
+  <div class="row">
+    <div id="villageName">みのり村</div>
+    <div id="hudStats">
+      <span id="hearts"></span>
+      <span class="hudico"><span id="icoCoin"></span><span class="num" id="coinN">0</span></span>
+      <span class="hudico" id="streakBadge"><span id="icoFlame"></span><span class="num" id="streakN">0</span></span>
+    </div>
+  </div>
+  <div id="xpWrap">
+    <span class="num" id="lvN">Lv1</span>
+    <div id="xpBar"><div id="xpFill"></div></div>
+    <span class="num" id="xpN">0/100</span>
+  </div>
+</div>
+
+<div id="scene">
+  <div id="sky"></div>
+  <div id="celestial"></div>
+  <div id="stars"></div>
+  <div class="cloud" style="top:36px; width:52px; animation-duration:46s;"></div>
+  <div class="cloud" style="top:80px; width:40px; animation-duration:64s; animation-delay:-20s;"></div>
+  <div id="ground"></div>
+  <div id="pathStrip"></div>
+  <div class="flower" data-s="sunflower" style="left:4%; bottom:92px;"></div>
+  <div class="flower" data-s="daisy" style="left:47%; bottom:96px;"></div>
+  <div class="flower" data-s="sunflower" style="left:93%; bottom:90px;"></div>
+  <div class="flower" data-s="daisy" style="left:36%; bottom:34px;"></div>
+  <div class="flower" data-s="daisy" style="left:68%; bottom:30px;"></div>
+  <div id="chicken"></div>
+  <div id="buildings"></div>
+  <div id="plots"></div>
+  <div id="fence"></div>
+</div>
+
+<div id="main">
+
+  <section id="tab-village" class="tabsec active">
+    <div class="card" id="todayCard"></div>
+    <h2 class="sec">きょうのできごと</h2>
+    <div class="card"><ul class="booklist" id="logList"></ul></div>
+  </section>
+
+  <section id="tab-zukan" class="tabsec">
+    <h2 class="sec" data-sp="flask">研究所の畑（基本情報）</h2>
+    <div class="card">
+      <small class="dim">分野を学び終えたら畑をタップして収穫（過去問の正答率で 銅60%→銀75%→金90%）</small>
+      <div class="cropgrid" id="cropGrid" style="margin-top:8px;"></div>
+    </div>
+    <h2 class="sec" data-sp="piano">レパートリー図鑑</h2>
+    <div class="card">
+      <div class="inline"><input type="text" id="repInput" placeholder="練習する曲名を追加"><button id="repAdd">追加</button></div>
+      <ul class="booklist" id="repList"></ul>
+    </div>
+    <h2 class="sec" data-sp="book">蔵書コレクション</h2>
+    <div class="card">
+      <div class="inline"><input type="text" id="bookInput" placeholder="読んでいる本を追加"><button id="bookAdd">追加</button></div>
+      <ul class="booklist" id="bookList"></ul>
+    </div>
+  </section>
+
+  <section id="tab-title" class="tabsec">
+    <h2 class="sec" data-sp="medal">称号</h2>
+    <div class="card">
+      <div>称号のかけら <span class="num" id="fragN">0</span> / 3</div>
+      <div class="fragpips" id="fragPips"></div>
+      <button id="claimTitle" disabled>かけら3つで称号をさずかる</button>
+      <div id="titleList" style="margin-top:8px;"></div>
+    </div>
+    <h2 class="sec" data-sp="gift">ご褒美ショップ（コイン10）</h2>
+    <div class="card">
+      <ul class="booklist" id="rewardList"></ul>
+      <div class="inline" style="margin-top:8px;"><input type="text" id="rewardInput" placeholder="ご褒美を追加"><button id="rewardAdd">追加</button></div>
+    </div>
+  </section>
+
+  <section id="tab-config" class="tabsec">
+    <h2 class="sec">⚙ 村の設定</h2>
+    <div class="card">
+      <div class="inline"><input type="text" id="nameInput" placeholder="村の名前"><button id="nameSave">改名</button></div>
+      <p style="font-size:13px;">☔ 雨の日チケット：残り <span class="num" id="ticketN">3</span> 枚（毎月3枚。休んだ日の連続記録を守る）</p>
+    </div>
+    <h2 class="sec">💾 セーブデータ</h2>
+    <div class="card">
+      <div class="inline">
+        <button id="expBtn" class="ghost">書き出し(JSON)</button>
+        <button id="impBtn" class="ghost">読み込み</button>
+        <input type="file" id="impFile" accept=".json" style="display:none;">
+      </div>
+      <p><small class="dim">データはこのブラウザ(このURL)内に保存されます。月1回の書き出しがおすすめ。</small></p>
+      <button id="resetBtn" style="background:var(--hp); color:#fff;">村をリセット</button>
+    </div>
+    <h2 class="sec">📖 あそびかた</h2>
+    <div class="card" style="font-size:13px; line-height:1.8;">
+      1日のスロットは❤3つ。施設をタップ→「次の一手」を1回やったら💧水やり。<br>
+      畑の作物は水やり6回で実り、収穫すると図鑑に入ります。<br>
+      水やりのたびにダイスが振られ、🪙コインや✨かけらが落ちます。<br>
+      全施設を回る必要なし。1日💧1回でも村は育ちます。
+    </div>
+  </section>
+
+</div>
+
+<nav id="tabbar">
+  <button class="on" data-tab="tab-village" data-sp="house">村</button>
+  <button data-tab="tab-zukan" data-sp="book">図鑑</button>
+  <button data-tab="tab-title" data-sp="medal">称号</button>
+  <button data-tab="tab-config" data-sp="gear">設定</button>
+</nav>
+
+<div id="sheetBack"></div>
+<div id="sheet">
+  <h3 id="sheetTitle"></h3>
+  <div id="sheetMeta"></div>
+  <div class="stagebar" id="stageBar"></div>
+  <div class="card" id="cropBlock" style="margin:0 0 10px;"></div>
+  <div style="font-size:13px; margin-bottom:4px;">▶ 次の一手（考えない。ここに書いてあることだけ）</div>
+  <div class="inline"><input type="text" id="nextInput"></div>
+  <div class="inline" style="margin-top:10px;">
+    <button id="doSession">✔ 1セッション完了（❤-1）</button>
+    <button id="sheetClose" class="ghost">閉じる</button>
+  </div>
+</div>
+
+<div id="diceOverlay">
+  <div id="die">⚂</div>
+  <div id="dropCard"></div>
+  <div id="diceHint">タップして閉じる</div>
+</div>
+
+<div id="toast"></div>
+<script>
+/* ============ みのり村 v0 ============ */
+const KEY='minori-village-v1';
+const CROPS=[
+ {id:'bin', sp:'potato', name:'2進数・論理演算', em:'🥔'},
+ {id:'alg', sp:'carrot', name:'アルゴリズム', em:'🥕'},
+ {id:'net', sp:'grape', name:'ネットワーク', em:'🍇'},
+ {id:'sec', sp:'garlic', name:'セキュリティ', em:'🧄'},
+ {id:'db', sp:'tomato',  name:'データベース', em:'🍅'},
+ {id:'hw', sp:'corn',  name:'ハードウェア', em:'🌽'},
+ {id:'os', sp:'eggplant',  name:'OS・ソフトウェア', em:'🍆'},
+ {id:'mg', sp:'wheat',  name:'マネジメント', em:'🌾'},
+ {id:'st', sp:'apple',  name:'ストラテジ', em:'🍎'}
+];
+const RANKS=['未収穫','銅','銀','金'];
+const TITLES=['ビット演算の錬金術師','鍵盤の旅人','頁をめくる者','夜ふけの開拓者','みのり村の司書','音の農夫','再帰の探検家','週末の討伐者','静かなる収集家','図鑑を満たす者'];
+
+/* ---- pixel sprite library ---- */
+const SPRITES={
+ flask:{g:['..kkkk..','...ww...','...ww...','..kwwk..','.kwbwk..','.kwbbk..','kwbbbbk.','.kkkkk..'],p:{k:'#2b2540',w:'#e8f4fb',b:'#5ab6e8'}},
+ piano:{g:['kkkkkkkk','kwkwkwwk','kwkwkwwk','kwkwkwwk','kwwwwwwk','kwwwwwwk','kwwwwwwk','kkkkkkkk'],p:{k:'#2b2540',w:'#fffdf5'}},
+ book:{g:['........','.kkkkkk.','kwwwkwwk','kwlwkwlk','kwwwkwwk','kwlwkwlk','.kkkkkk.','........'],p:{k:'#2b2540',w:'#fffdf5',l:'#b9a98a'}},
+ sprout:{g:['........','........','..g..g..','.gg..gg.','..gggg..','...dd...','...dd...','........'],p:{g:'#6fbf4f',d:'#3f7a30'}},
+ sapling:{g:['..g..g..','.gg..gg.','..gddg..','.g.dd.g.','.ggddgg.','...dd...','...dd...','........'],p:{g:'#6fbf4f',d:'#3f7a30'}},
+ bloom:{g:['..ppp...','.pyyyp..','.pyyyp..','..ppp...','...d....','.g.d....','..gd....','...d....'],p:{p:'#e88bb0',y:'#ffcf4a',d:'#3f7a30',g:'#6fbf4f'}},
+ potato:{g:['........','..bbbb..','.bbbbbb.','.bdbbdb.','.bbbbbb.','.bbbdbb.','..bbbb..','........'],p:{b:'#c49a6c',d:'#8a6a45'}},
+ carrot:{g:['..g.g...','.g.g.g..','.oooooo.','..oooo..','..oooo..','...oo...','...o....','........'],p:{g:'#5da144',o:'#f28c28'}},
+ grape:{g:['....g...','...gg...','..p.pp..','.pppppp.','.pppppp.','..pppp..','...pp...','........'],p:{g:'#5da144',p:'#8757b3'}},
+ garlic:{g:['...t....','...w....','..www...','.wwsww..','.wwsww..','.wwsww..','..www...','........'],p:{t:'#9c8f6a',w:'#f3ead6',s:'#cbbf9d'}},
+ tomato:{g:['..g..g..','...gg...','..rrrr..','.rrrrrr.','.rrrrrr.','.rrrrrr.','..rrrr..','........'],p:{g:'#5da144',r:'#e04f4f'}},
+ corn:{g:['...yy...','..ydyy..','.gydyyg.','.gyydyg.','.gydyyg.','..gyyg..','...gg...','........'],p:{y:'#ffd24a',d:'#e0a92e',g:'#5da144'}},
+ eggplant:{g:['...gg...','..ggg...','...pp...','..pppp..','..pppp..','..pppp..','...pp...','........'],p:{g:'#5da144',p:'#6b3fa0'}},
+ wheat:{g:['..y.y...','.y.y.y..','..y.y...','.y.y.y..','..yyy...','...d....','...d....','...d....'],p:{y:'#e8c34a',d:'#8a6a45'}},
+ apple:{g:['....k...','....kg..','..rrrr..','.rrrrrr.','.rrrrrr.','.rrrrrr.','..rrrr..','........'],p:{k:'#6e4a2e',g:'#5da144',r:'#e04f4f'}},
+ peach:{g:['....g...','...gg...','..ppoo..','.pppooo.','.pppooo.','.ppooo..','..poo...','........'],p:{g:'#5da144',p:'#f7b2c1',o:'#f2907f'}},
+ strawberry:{g:['..g.g...','.ggggg..','..rrrr..','.rwrrwr.','.rrwrrr.','..rrrr..','...rr...','........'],p:{g:'#5da144',r:'#e04f4f',w:'#fffdf5'}},
+ chicken:{g:['..r.....','.wkw....','owww....','.wwwwww.','.wwwwww.','..wwww..','..y..y..','........'],p:{r:'#e04f4f',w:'#fffdf5',k:'#2b2540',o:'#f28c28',y:'#f2b134'}},
+ sunflower:{g:['.y.y.y..','.yybyy..','.ybbby..','.yybyy..','.y.y.y..','...d....','.g.d....','...d....'],p:{y:'#ffd24a',b:'#8a5a2b',d:'#3f7a30',g:'#6fbf4f'}},
+ daisy:{g:['........','..w.w...','.wwyww..','..w.w...','...d....','...d....','........','........'],p:{w:'#fffdf5',y:'#ffcf4a',d:'#3f7a30'}},
+ drop:{g:['...b....','...b....','..bbb...','.bbbbb..','.bwbbb..','.bbbbb..','..bbb...','........'],p:{b:'#5ab6e8',w:'#d6f0fb'}},
+ heart:{g:['.rr.rr..','rrwrrrr.','rrrrrrr.','.rrrrr..','..rrr...','...r....','........','........'],p:{r:'#ff5a5a',w:'#ffb3b3'}},
+ coin:{g:['..kkk...','.kyyyk..','kyywyyk.','kyywyyk.','kyyyyyk.','.kyyyk..','..kkk...','........'],p:{k:'#2b2540',y:'#ffcf4a',w:'#fff3c4'}},
+ flame:{g:['....r...','...rr...','...ryr..','..ryyr..','.ryyyyr.','.ryyyr..','..rrr...','........'],p:{r:'#e8642c',y:'#ffcf4a'}},
+ spark:{g:['...v....','...v....','.vvvvv..','...v....','...v....','........','........','........'],p:{v:'#b57ee5'}},
+ house:{g:['........','...rr...','..rrrr..','.rrrrrr.','.kwwwwk.','.kwddwk.','.kwddwk.','.kkkkkk.'],p:{r:'#c75d76',k:'#2b2540',w:'#fffdf5',d:'#8c5a3c'}},
+ medal:{g:['..r.r...','..r.r...','..kkk...','.kyyyk..','.kywyk..','.kyyyk..','..kkk...','........'],p:{r:'#e04f4f',k:'#2b2540',y:'#ffcf4a',w:'#fff3c4'}},
+ gear:{g:['.k.kk.k.','..kkkk..','.kk..kk.','.kk..kk.','..kkkk..','.k.kk.k.','........','........'],p:{k:'#4a415f'}},
+ gift:{g:['..y.y...','...y....','.rryrr..','.rryrr..','.yyyyy..','.rryrr..','.rryrr..','........'],p:{y:'#ffcf4a',r:'#e04f4f'}},
+ star:{g:['...y....','..yyy...','yyyyyyy.','.yyyyy..','..y.y...','.y...y..','........','........'],p:{y:'#ffcf4a'}}
+};
+function sprRects(def,ov){
+  let s=''; const g=def.g;
+  for(let y=0;y<g.length;y++){for(let x=0;x<g[y].length;x++){
+    const ch=g[y][x]; if(ch==='.') continue;
+    const col=(ov&&ov[ch])||def.p[ch]; if(!col) continue;
+    s+='<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="'+col+'"/>';
+  }}
+  return s;
+}
+function sprSVG(name,size,ov){
+  const d=SPRITES[name]; const hh=d.g.length, ww=d.g[0].length;
+  return '<svg viewBox="0 0 '+ww+' '+hh+'" width="'+size+'" height="'+Math.round(size*hh/ww)+'" shape-rendering="crispEdges" style="vertical-align:-3px" xmlns="http://www.w3.org/2000/svg">'+sprRects(d,ov)+'</svg>';
+}
+const FACS={
+ lab:  {name:'研究所', em:'⚗️', sp:'flask', color:'#4d7cc7', defNext:'Udemy 次のセクションを1本'},
+ music:{name:'音楽堂', em:'🎹', sp:'piano', color:'#c75d76', defNext:'練習中の曲の続きを15分'},
+ book: {name:'書斎',  em:'📚', sp:'book', color:'#4f9d69', defNext:'いま読んでいる本の続き20頁'}
+};
+const PRODUCE={music:'🍑',book:'🍓'};
+const WATER_NEED=6;
+function cropStage(w){return w>=6?4:(w>=4?3:(w>=2?2:1));}
+function cropEmoji(k,crop,st,size){
+  size=size||16; let n;
+  if(st>=4){n = k==='lab' ? ((CROPS.find(c=>c.id===crop.id)||{}).sp||'wheat') : (k==='music'?'peach':'strawberry');}
+  else n = st===3?'bloom':(st===2?'sapling':'sprout');
+  return sprSVG(n,size);
+}
+function autoPlant(k){
+  const f=S.fac[k]; if(f.crop) return;
+  if(k==='lab'){const c=CROPS.find(c=>!(S.crops[c.id]>0)); if(c) f.crop={id:c.id,label:c.name,water:0};}
+  else{const arr=k==='music'?S.rep:S.books; const it=arr.find(x=>!x.done); if(it) f.crop={label:it.title,water:0};}
+}
+const DEF={v:1,name:'みのり村',xp:0,coins:0,frags:0,titles:[],
+ slotsDate:'',slotsUsed:0,tickets:{month:'',left:3},streak:{last:'',count:0},
+ fac:{lab:{visits:0,next:FACS.lab.defNext,lastDay:'',crop:null},
+      music:{visits:0,next:FACS.music.defNext,lastDay:'',crop:null},
+      book:{visits:0,next:FACS.book.defNext,lastDay:'',crop:null}},
+ crops:{},rep:[],books:[],
+ rewards:['美濃焼カフェ・器めぐり','写真さんぽ','ゲーム1時間'],log:[]};
+
+let S=load();
+function load(){try{const r=localStorage.getItem(KEY);if(r){const s=JSON.parse(r);return Object.assign(JSON.parse(JSON.stringify(DEF)),s);}}catch(e){}return JSON.parse(JSON.stringify(DEF));}
+function save(){localStorage.setItem(KEY,JSON.stringify(S));}
+const $=id=>document.getElementById(id);
+function todayStr(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function dayDiff(a,b){return Math.round((new Date(b+'T00:00')-new Date(a+'T00:00'))/86400000);}
+function toast(msg){const t=$('toast');t.textContent=msg;t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',2600);}
+function addLog(msg){S.log.unshift(todayStr().slice(5)+' '+msg);S.log=S.log.slice(0,30);}
+
+/* ---- daily / monthly / streak upkeep ---- */
+function upkeep(){
+  const td=todayStr();
+  if(S.slotsDate!==td){S.slotsDate=td;S.slotsUsed=0;}
+  const mo=td.slice(0,7);
+  if(S.tickets.month!==mo){S.tickets.month=mo;S.tickets.left=3;}
+  if(S.streak.last && S.streak.last!==td){
+    const gap=dayDiff(S.streak.last,td);
+    if(gap>=2){
+      if(S.tickets.left>0 && S.streak.count>=2 &&
+        confirm('☔ '+(gap-1)+'日おやすみでした。雨の日チケットを1枚つかって 連続'+S.streak.count+'日 をまもりますか？（残り'+S.tickets.left+'枚）')){
+        S.tickets.left--;const y=new Date();y.setDate(y.getDate()-1);S.streak.last=todayStr(y);
+        addLog('☔ 雨の日チケットで連続記録をまもった');
+      }else{S.streak={last:'',count:0};}
+    }
+  }
+  ['lab','music','book'].forEach(autoPlant);
+  save();
+}
+
+/* ---- pixel buildings (SVG) ---- */
+function px(x,y,w,h,c){return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" fill="'+c+'"/>';}
+function buildingSVG(key,stage){
+  const c=FACS[key].color, ink='#2b2540', wall='#efe2c0', wallD='#dccb9e', win='#bfe8f7';
+  let s='';
+  const H=64;
+  if(stage===1){
+    s+=px(16,38,32,22,wall)+px(16,38,32,4,wallD);
+    s+=px(12,30,40,4,ink)+px(16,26,32,4,c)+px(20,22,24,4,c)+px(26,18,12,4,c);
+    s+=px(28,46,8,14,'#8c5a3c')+px(30,50,2,2,ink);
+    s+=px(38,44,6,6,win);
+  }else if(stage===2){
+    s+=px(12,30,40,30,wall)+px(12,30,40,4,wallD);
+    s+=px(8,22,48,4,ink)+px(12,18,40,4,c)+px(18,14,28,4,c)+px(26,10,12,4,c);
+    s+=px(28,44,8,16,'#8c5a3c')+px(30,50,2,2,ink);
+    s+=px(16,36,7,7,win)+px(41,36,7,7,win)+px(41,48,7,7,win);
+    s+=px(44,4,6,10,'#8c5a3c');
+  }else{
+    s+=px(8,32,48,28,wall)+px(8,32,48,4,wallD);
+    s+=px(4,24,56,4,ink)+px(8,20,48,4,c)+px(16,16,32,4,c);
+    s+=px(24,4,16,12,c)+px(22,16,20,4,ink);
+    s+=px(31,0,2,6,ink)+px(33,0,8,5,'#ffcf4a');
+    s+=px(28,44,8,16,'#8c5a3c')+px(30,50,2,2,ink);
+    s+=px(12,38,7,7,win)+px(45,38,7,7,win)+px(12,50,7,7,win)+px(45,50,7,7,win);
+    s+=px(48,6,6,10,'#8c5a3c');
+  }
+  const shw=stage===1?36:(stage===2?46:54);
+  s+='<rect x="'+(32-shw/2)+'" y="'+(H-3)+'" width="'+shw+'" height="3" fill="#2f5b23" opacity=".85"/>';
+  const sy=stage===1?44:(stage===2?46:32), sx=stage===3?26:15;
+  s+=px(sx,sy,12,12,'#f8efd8');
+  s+='<rect x="'+sx+'" y="'+sy+'" width="12" height="12" fill="none" stroke="'+ink+'" stroke-width="1.6"/>';
+  s+='<g transform="translate('+(sx+2)+','+(sy+2)+')">'+sprRects(SPRITES[FACS[key].sp])+'</g>';
+  return '<svg viewBox="0 0 64 64" width="96" height="96" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">'+s+'</svg>';
+}
+function stageOf(v){return v>=30?3:(v>=10?2:1);}
+
+/* ---- render ---- */
+function renderHUD(){
+  $('villageName').textContent=S.name;
+  const lv=Math.floor(S.xp/100)+1, cur=S.xp%100;
+  $('lvN').textContent='Lv'+lv; $('xpN').textContent=cur+'/100';
+  $('xpFill').style.width=cur+'%';
+  $('coinN').textContent=S.coins; $('streakN').textContent=S.streak.count;
+  let h='';for(let i=0;i<3;i++)h+= i<3-S.slotsUsed ? sprSVG('heart',15) : sprSVG('heart',15,{r:'#57493f',w:'#57493f'});
+  $('hearts').innerHTML=h;
+  $('ticketN').textContent=S.tickets.left;
+}
+function renderScene(){
+  const td=todayStr();
+  const keys=Object.keys(FACS), pos=['16.66%','50%','83.33%'];
+  $('buildings').innerHTML=keys.map(k=>{
+    const f=S.fac[k], st=stageOf(f.visits), done=f.lastDay===td;
+    return '<div class="bwrap'+(done?' done-today':'')+'" data-f="'+k+'">'+
+      '<div class="smoke"><i></i><i></i><i></i></div>'+
+      buildingSVG(k,st)+'</div>';
+  }).join('');
+  $('plots').innerHTML=keys.map((k,i)=>plotHTML(k,S.fac[k],pos[i],S.fac[k].lastDay===td)).join('');
+  document.querySelectorAll('.bwrap,#plots .plot').forEach(b=>b.onclick=()=>openSheet(b.dataset.f));
+  const hr=new Date().getHours();
+  document.body.className = hr>=5&&hr<9?'sky-morning':(hr>=9&&hr<16?'sky-day':(hr>=16&&hr<19?'sky-evening':'sky-night'));
+}
+function plotHTML(k,f,leftPos,done){
+  const deco='<span class="psign">'+FACS[k].name+'</span><span class="tuft" style="left:6px;"></span><span class="tuft" style="right:9px;"></span>';
+  const cls='plot'+(done?' done-today':''), sty=' style="left:'+leftPos+';"';
+  if(!f.crop) return '<div class="'+cls+'" data-f="'+k+'"'+sty+'>'+deco+'<span class="cr" style="opacity:.35; font-size:12px;">···</span></div>';
+  const st=cropStage(f.crop.water);
+  return '<div class="'+cls+' s'+st+(st>=4?' ready':'')+'" data-f="'+k+'"'+sty+'>'+deco+
+    '<span class="cr">'+cropEmoji(k,f.crop,st, st>=4?20:(st===3?17:(st===2?14:11)))+'</span></div>';
+}
+function waterFX(k){
+  const w=document.querySelector('#plots .plot[data-f="'+k+'"]'); if(!w) return;
+  for(let i=0;i<3;i++){
+    const d=document.createElement('span'); d.className='droplet'; d.innerHTML=sprSVG('drop',11);
+    d.style.left=(8+i*20)+'px'; d.style.animationDelay=(i*0.13)+'s';
+    w.appendChild(d); setTimeout(()=>d.remove(),1100);
+  }
+}
+function renderVillageTab(){
+  const left=3-S.slotsUsed;
+  $('todayCard').innerHTML='<b>きょうのクエスト</b><br>'+
+    Object.keys(FACS).map(k=>{
+      const f=S.fac[k]; let ex='';
+      if(f.crop){ex=f.crop.water>=WATER_NEED?(sprSVG('spark',11)+' '+esc(f.crop.label)+' が実ってる！収穫しよう'):(sprSVG('sprout',11)+' '+esc(f.crop.label)+'：あと'+(WATER_NEED-f.crop.water)+'回の水やりで実り');}
+      else{ex='畑があいています（施設をタップして たねまき）';}
+      return sprSVG(FACS[k].sp,14)+' '+FACS[k].name+'：'+esc(f.next)+'<br><small class="dim">　└ '+ex+'</small>';
+    }).join('<br>')+
+    '<br><small class="dim">のこり❤'+left+'。ぜんぶやる必要はありません。水やり1回で合格。</small>';
+  $('logList').innerHTML=S.log.length?S.log.slice(0,8).map(l=>'<li><span class="t">'+esc(l)+'</span></li>').join(''):'<li><span class="t">まだ記録がありません。施設をタップ！</span></li>';
+}
+function esc(s){return String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
+function renderZukan(){
+  $('cropGrid').innerHTML=CROPS.map(c=>{
+    const r=S.crops[c.id]||0;
+    return '<div class="crop r'+r+'" data-c="'+c.id+'"><span class="em">'+sprSVG(c.sp,30)+'</span><span class="nm">'+c.name+'</span><span class="rk">'+RANKS[r]+'</span></div>';
+  }).join('');
+  document.querySelectorAll('.crop').forEach(el=>el.onclick=()=>{
+    const id=el.dataset.c; const r=S.crops[id]||0; const nr=(r+1)%4;
+    if(nr===0 && !confirm('この作物を「未収穫」にもどしますか？')) return;
+    S.crops[id]=nr;
+    if(r===0&&nr===1){S.xp+=30;addLog('🌾 '+CROPS.find(x=>x.id===id).name+' を収穫！(+30XP)');confetti();toast('収穫！ +30XP');}
+    save();renderAll();
+  });
+  renderChecklist('repList',S.rep,sprSVG('sprout',15),sprSVG('peach',15),'ひけた！','レパートリー入り +30XP');
+  renderChecklist('bookList',S.books,sprSVG('sprout',15),sprSVG('strawberry',15),'読了！','蔵書入り +30XP');
+}
+function renderChecklist(listId,arr,em0,em1,pillTxt,doneMsg){
+  $(listId).innerHTML=arr.length?arr.map((it,i)=>
+    '<li class="'+(it.done?'done':'')+'"><span>'+(it.done?em1:em0)+'</span><span class="t">'+esc(it.title)+'</span>'+
+    (it.done?'<span class="pill">達成</span>':'<button class="pill" data-i="'+i+'">'+pillTxt+'</button>')+
+    '<button class="pill" data-del="'+i+'">×</button></li>').join('')
+   :'<li><span class="t"><small class="dim">まだ登録がありません</small></span></li>';
+  $(listId).querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>{
+    const t=arr[b.dataset.i].title; arr[b.dataset.i].done=true; S.xp+=30;
+    Object.keys(S.fac).forEach(k=>{if(S.fac[k].crop&&S.fac[k].crop.label===t){S.fac[k].crop=null;autoPlant(k);}});
+    addLog('🌾 '+t+'（'+doneMsg+'）'); confetti(); save(); renderAll();});
+  $(listId).querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(confirm('削除しますか？')){arr.splice(b.dataset.del,1);save();renderAll();}});
+}
+function renderTitleTab(){
+  $('fragN').textContent=S.frags;
+  $('fragPips').innerHTML=[0,1,2].map(i=>'<i class="'+(i<S.frags%3||S.frags>=3&&i<3?'on':'')+'"></i>').join('');
+  $('claimTitle').disabled=!(S.frags>=3&&S.titles.length<TITLES.length);
+  $('titleList').innerHTML=S.titles.map(t=>'<span class="titletag">'+esc(t)+'</span>').join('')||'<small class="dim">まだ称号がありません</small>';
+  $('rewardList').innerHTML=S.rewards.map((r,i)=>
+    '<li><span>'+sprSVG('gift',15)+'</span><span class="t">'+esc(r)+'</span><button class="pill" data-buy="'+i+'" '+(S.coins<10?'disabled':'')+'>🪙10で交換</button><button class="pill" data-rdel="'+i+'">×</button></li>').join('');
+  $('rewardList').querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{
+    if(S.coins>=10){S.coins-=10;addLog('🎁 ご褒美「'+S.rewards[b.dataset.buy]+'」と交換！');confetti();toast('🎁 '+S.rewards[b.dataset.buy]+' を解禁！たのしんで！');save();renderAll();}});
+  $('rewardList').querySelectorAll('[data-rdel]').forEach(b=>b.onclick=()=>{if(confirm('削除しますか？')){S.rewards.splice(b.dataset.rdel,1);save();renderAll();}});
+}
+function renderAll(){renderHUD();renderScene();renderVillageTab();renderZukan();renderTitleTab();}
+
+/* ---- facility sheet ---- */
+let curFac=null;
+function openSheet(k){
+  curFac=k;const f=S.fac[k],st=stageOf(f.visits);
+  $('sheetTitle').innerHTML=sprSVG(FACS[k].sp,18)+' '+FACS[k].name+'（通った回数 '+f.visits+'）';
+  const nextAt=st===1?10:(st===2?30:null);
+  $('sheetMeta').innerHTML=nextAt?('つぎの増築まで あと <b>'+(nextAt-f.visits)+'</b> 回'):'最終形態！りっぱに育ちました';
+  $('stageBar').innerHTML=[...Array(10)].map((_,i)=>'<i class="'+(i<(f.visits%10||(f.visits&&f.visits%10===0?10:0))?'on':'')+'"></i>').join('');
+  $('nextInput').value=f.next;
+  $('cropBlock').innerHTML=cropBlockHTML(k);
+  const hb=$('harvestBtn'); if(hb) hb.onclick=()=>harvest(k);
+  const rb=$('replantBtn'); if(rb) rb.onclick=()=>{
+    if(confirm('いまの作物をあきらめて、たねを変えますか？（水やりは失われます）')){S.fac[k].crop=null; save(); renderScene(); openSheet(k);}
+  };
+  const pb=$('plantBtn'); if(pb) pb.onclick=()=>{
+    const v=$('plantSel').value;
+    if(k==='lab'){const c=CROPS.find(c=>c.id===v); S.fac[k].crop={id:v,label:c.name,water:0};}
+    else{const arr=k==='music'?S.rep:S.books; S.fac[k].crop={label:arr[v].title,water:0};}
+    addLog('🌱 '+FACS[k].name+'の畑に「'+S.fac[k].crop.label+'」のたねをまいた');
+    save(); renderScene(); renderVillageTab(); openSheet(k); toast('🌱 たねをまいた！');
+  };
+  $('doSession').disabled=S.slotsUsed>=3;
+  $('doSession').innerHTML=S.slotsUsed>=3?'きょうは村じゅうが満足（また明日）':(sprSVG('drop',14)+' 水やり＝1セッション完了（'+sprSVG('heart',13)+'-1）');
+  $('sheet').classList.add('open');$('sheetBack').classList.add('open');
+}
+function cropBlockHTML(k){
+  const f=S.fac[k];
+  if(f.crop){
+    const st=cropStage(f.crop.water);
+    let pips=''; for(let i=0;i<WATER_NEED;i++) pips+='<i class="'+(i<f.crop.water?'on':'')+'"></i>';
+    let h='<b>いまの畑：</b>'+cropEmoji(k,f.crop,st)+' '+esc(f.crop.label)+'<br>'+
+      '💧 <span class="waterpips">'+pips+'</span> '+f.crop.water+'/'+WATER_NEED+'<br>';
+    h+= st>=4 ? '<button id="harvestBtn" style="margin-top:6px;">'+sprSVG('wheat',14)+' 収穫する（+30XP・図鑑へ）</button> '
+              : '<small class="dim">あと'+(WATER_NEED-f.crop.water)+'回の水やりで実ります</small> ';
+    h+='<button id="replantBtn" class="pill">たねを変える</button>';
+    return h;
+  }
+  let opts='';
+  if(k==='lab'){CROPS.filter(c=>!(S.crops[c.id]>0)).forEach(c=>{opts+='<option value="'+c.id+'">'+c.em+' '+c.name+'</option>';});}
+  else{(k==='music'?S.rep:S.books).forEach((it,i)=>{if(!it.done) opts+='<option value="'+i+'">'+esc(it.title)+'</option>';});}
+  if(!opts) return '<b>畑があいています。</b><br><small class="dim">'+(k==='lab'?'ぜんぶ収穫ずみ！おみごと！':'図鑑タブで'+(k==='music'?'曲':'本')+'を登録すると、ここにたねをまけます')+'</small>';
+  return '<b>たねをまく：</b><div class="inline" style="margin-top:6px;"><select id="plantSel" style="flex:1;">'+opts+'</select><button id="plantBtn">まく</button></div>';
+}
+function harvest(k){
+  const f=S.fac[k]; if(!f.crop||f.crop.water<WATER_NEED) return;
+  const lbl=f.crop.label;
+  if(k==='lab'){S.crops[f.crop.id]=Math.max(S.crops[f.crop.id]||0,1);}
+  else{const arr=k==='music'?S.rep:S.books; const it=arr.find(x=>x.title===lbl&&!x.done); if(it) it.done=true;}
+  S.xp+=30; f.crop=null; autoPlant(k);
+  addLog('🌾 '+lbl+' を収穫した！(+30XP)');
+  confetti(); toast('🌾 収穫！ +30XP'); save(); renderAll(); openSheet(k);
+}
+function closeSheet(){ $('sheet').classList.remove('open');$('sheetBack').classList.remove('open');
+  if(curFac){S.fac[curFac].next=$('nextInput').value||FACS[curFac].defNext;save();renderVillageTab();}
+}
+$('sheetClose').onclick=closeSheet; $('sheetBack').onclick=closeSheet;
+$('doSession').onclick=()=>{
+  const k=curFac,f=S.fac[k],td=todayStr();
+  f.next=$('nextInput').value||FACS[k].defNext;
+  S.slotsUsed++;f.visits++;const prevStage=stageOf(f.visits-1);
+  S.xp+=10;
+  if(!f.crop) autoPlant(k);
+  let ripened=false;
+  if(f.crop){f.crop.water++; if(f.crop.water===WATER_NEED) ripened=true;}
+  if(S.streak.last===td){}else if(S.streak.last&&dayDiff(S.streak.last,td)===1){S.streak.count++;S.streak.last=td;}
+  else{S.streak.count=1;S.streak.last=td;}
+  addLog('💧 '+FACS[k].name+'の畑に水やり (+10XP)');
+  if(ripened){addLog('✨ '+f.crop.label+' が実った！');}
+  if(stageOf(f.visits)>prevStage){addLog('🔨 '+FACS[k].name+'が増築された！');toast('🔨 '+FACS[k].name+'が増築！');confetti();}
+  save();closeSheet();renderAll();
+  waterFX(k);
+  if(ripened) toast('✨ '+f.crop.label+' が実った！収穫しよう！');
+  setTimeout(rollDice,700);
+};
+
+/* ---- dice ---- */
+const FACES=['⚀','⚁','⚂','⚃','⚄','⚅'];
+function rollDice(){
+  const ov=$('diceOverlay'),die=$('die'),card=$('dropCard');
+  ov.classList.add('open');card.style.display='none';die.classList.add('rolling');
+  let t=0;const iv=setInterval(()=>{die.textContent=FACES[Math.floor(Math.random()*6)];},80);
+  setTimeout(()=>{
+    clearInterval(iv);die.classList.remove('rolling');
+    const n=1+Math.floor(Math.random()*6);die.textContent=FACES[n-1];
+    let html='';
+    if(n<=3){S.coins++;html='<span class="big">'+sprSVG('coin',36)+'</span>コインを1まい拾った！（所持 '+S.coins+'）';addLog('🪙 コインドロップ');}
+    else if(n<=5){S.frags++;html='<span class="big">'+sprSVG('spark',34)+'</span>称号のかけらを見つけた！（'+Math.min(S.frags,3)+'/3'+(S.frags>=3?' → さずかれる！':'')+'）';addLog('✨ かけらドロップ');}
+    else{S.coins+=2;html='<span class="big">'+sprSVG('star',38)+'</span>ゴールデンドロップ！！<br>コイン2まい＋きょうのご褒美を<br><b>いますぐ1つ解禁</b>してよし！';addLog('🌟 ゴールデンドロップ！');confetti();}
+    card.innerHTML=html;card.style.display='block';save();renderAll();
+    ov.onclick=()=>ov.classList.remove('open');
+  },1000);
+  ov.onclick=null;
+}
+$('claimTitle').onclick=()=>{
+  if(S.frags>=3&&S.titles.length<TITLES.length){
+    S.frags-=3;const t=TITLES[S.titles.length];S.titles.push(t);
+    addLog('🏅 称号「'+t+'」をさずかった！');confetti();toast('🏅 称号「'+t+'」獲得！');save();renderAll();
+  }
+};
+
+/* ---- inputs ---- */
+$('repAdd').onclick=()=>{const v=$('repInput').value.trim();if(!v)return;S.rep.push({title:v,done:false});$('repInput').value='';addLog('🎵 練習曲「'+v+'」を登録');save();renderAll();};
+$('bookAdd').onclick=()=>{const v=$('bookInput').value.trim();if(!v)return;S.books.push({title:v,done:false});$('bookInput').value='';addLog('📖 「'+v+'」を読みはじめた');save();renderAll();};
+$('rewardAdd').onclick=()=>{const v=$('rewardInput').value.trim();if(!v)return;S.rewards.push(v);$('rewardInput').value='';save();renderAll();};
+$('nameSave').onclick=()=>{const v=$('nameInput').value.trim();if(v){S.name=v;save();renderAll();toast('村の名前を「'+v+'」にした');}};
+
+/* ---- save data ---- */
+$('expBtn').onclick=()=>{
+  const blob=new Blob([JSON.stringify(S,null,1)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='minori-village-'+todayStr()+'.json';a.click();URL.revokeObjectURL(a.href);
+};
+$('impBtn').onclick=()=>$('impFile').click();
+$('impFile').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{try{const d=JSON.parse(r.result);if(d&&d.v){S=Object.assign(JSON.parse(JSON.stringify(DEF)),d);save();renderAll();toast('セーブデータを読み込みました');}else toast('形式がちがうようです');}catch(err){toast('読み込みに失敗しました');}};
+  r.readAsText(f);
+};
+$('resetBtn').onclick=()=>{if(confirm('本当に村をリセットしますか？図鑑もXPも消えます。')&&confirm('最終確認：もとに戻せません。よいですか？')){localStorage.removeItem(KEY);S=load();save();renderAll();toast('あたらしい村がはじまった');}};
+
+/* ---- tabs ---- */
+document.querySelectorAll('#tabbar button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#tabbar button').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.tabsec').forEach(x=>x.classList.remove('active'));
+  b.classList.add('on');$(b.dataset.tab).classList.add('active');
+  $('scene').style.display=b.dataset.tab==='tab-village'?'block':'none';
+});
+
+/* ---- confetti & stars ---- */
+function confetti(){
+  const colors=['#ffcf4a','#c75d76','#4d7cc7','#4f9d69','#b57ee5'];
+  for(let i=0;i<22;i++){
+    const d=document.createElement('div');d.className='confetti';
+    d.style.background=colors[i%colors.length];
+    d.style.left=(45+Math.random()*10)+'%';d.style.top='40%';
+    document.body.appendChild(d);
+    const dx=(Math.random()-0.5)*260,dy=120+Math.random()*220,rot=Math.random()*720;
+    d.animate([{transform:'translate(0,0) rotate(0deg)',opacity:1},{transform:'translate('+dx+'px,'+dy+'px) rotate('+rot+'deg)',opacity:0}],{duration:900+Math.random()*500,easing:'ease-out'});
+    setTimeout(()=>d.remove(),1400);
+  }
+}
+(function stars(){const w=$('stars');for(let i=0;i<26;i++){const s=document.createElement('i');s.className='star';s.style.left=Math.random()*100+'%';s.style.top=Math.random()*55+'%';s.style.animationDelay=(Math.random()*2)+'s';w.appendChild(s);}})();
+
+/* ---- boot ---- */
+$('icoCoin').innerHTML=sprSVG('coin',15);
+$('icoFlame').innerHTML=sprSVG('flame',15);
+$('chicken').innerHTML=sprSVG('chicken',20);
+document.querySelectorAll('.flower').forEach(f=>{f.innerHTML=sprSVG(f.dataset.s, f.dataset.s==='sunflower'?17:13);});
+document.querySelectorAll('[data-sp]').forEach(el=>{el.innerHTML=sprSVG(el.dataset.sp, el.tagName==='H2'?16:14)+' '+el.textContent;});
+upkeep();renderAll();
+setInterval(()=>{renderScene();},60000);
+</script>
+</body>
+</html>
