@@ -368,21 +368,15 @@ select{font-family:'DotGothic16',monospace; font-size:16px; border:3px solid var
   </section>
 
   <section id="tab-zukan" class="tabsec">
-    <h2 class="sec" data-sp="flask">研究所の畑（基本情報）</h2>
+    <h2 class="sec" data-sp="flask">研究所のとれ高</h2>
     <div class="card">
-      <small class="dim">分野を学び終えたら畑をタップして収穫（過去問の正答率で 銅60%→銀75%→金90%）</small>
+      <small class="dim">勉強の収穫で野菜が貯まります。むずかしいことは考えなくてOK。</small>
       <div class="cropgrid" id="cropGrid" style="margin-top:8px;"></div>
     </div>
-    <h2 class="sec" data-sp="piano">レパートリー図鑑</h2>
-    <div class="card">
-      <div class="inline"><input type="text" id="repInput" placeholder="練習する曲名を追加"><button id="repAdd">追加</button></div>
-      <ul class="booklist" id="repList"></ul>
-    </div>
-    <h2 class="sec" data-sp="book">蔵書コレクション</h2>
-    <div class="card">
-      <div class="inline"><input type="text" id="bookInput" placeholder="読んでいる本を追加"><button id="bookAdd">追加</button></div>
-      <ul class="booklist" id="bookList"></ul>
-    </div>
+    <h2 class="sec" data-sp="piano">音楽堂の収穫</h2>
+    <div class="card"><ul class="booklist" id="repList"></ul></div>
+    <h2 class="sec" data-sp="book">書斎の収穫</h2>
+    <div class="card"><ul class="booklist" id="bookList"></ul></div>
   </section>
 
   <section id="tab-title" class="tabsec">
@@ -419,8 +413,8 @@ select{font-family:'DotGothic16',monospace; font-size:16px; border:3px solid var
     <h2 class="sec">📖 あそびかた</h2>
     <div class="card" style="font-size:13px; line-height:1.8;">
       1日のスロットは❤3つ。施設をタップ→「次の一手」を1回やったら💧水やり。<br>
-      畑の作物は水やり6回で実り、収穫すると図鑑に入ります。<br>
-      水やりのたびにダイスが振られ、🪙コインや✨かけらが落ちます。<br>
+      畑はほうっておいても勝手に育ちます。登録も分類もいりません。<br>
+      水やり6回で実り→収穫。名前をつけたければその時だけ（空でもOK）。<br>
       全施設を回る必要なし。1日💧1回でも村は育ちます。
     </div>
   </section>
@@ -528,25 +522,40 @@ const WATER_NEED=6;
 function cropStage(w){return w>=6?4:(w>=4?3:(w>=2?2:1));}
 function cropEmoji(k,crop,st,size){
   size=size||16; let n;
-  if(st>=4){n = k==='lab' ? ((CROPS.find(c=>c.id===crop.id)||{}).sp||'wheat') : (k==='music'?'peach':'strawberry');}
+  if(st>=4){n = nextVeg(k);}
   else n = st===3?'bloom':(st===2?'sapling':'sprout');
   return sprSVG(n,size);
 }
 function autoPlant(k){
   const f=S.fac[k]; if(f.crop) return;
-  if(k==='lab'){const c=CROPS.find(c=>!(S.crops[c.id]>0)); if(c) f.crop={id:c.id,label:c.name,water:0};}
-  else{const arr=k==='music'?S.rep:S.books; const it=arr.find(x=>!x.done); if(it) f.crop={label:it.title,water:0};}
+  f.crop={label:'',water:0}; // 何もしなくても勝手に育つ
 }
+function nextVeg(k){ // 次に実る作物スプライト（研究所は野菜が順ぐりに実る）
+  return k==='lab' ? CROPS[S.harvests.lab.length%CROPS.length].sp : (k==='music'?'peach':'strawberry');
+}
+function cropName(k,crop){ return crop.label ? crop.label : (k==='lab'?'こんかいの学び':(k==='music'?'れんしゅう中の曲':'よみかけの本')); }
 const DEF={v:1,name:'みのり村',xp:0,coins:0,frags:0,titles:[],
  slotsDate:'',slotsUsed:0,tickets:{month:'',left:3},streak:{last:'',count:0},
  fac:{lab:{visits:0,next:FACS.lab.defNext,lastDay:'',crop:null},
       music:{visits:0,next:FACS.music.defNext,lastDay:'',crop:null},
       book:{visits:0,next:FACS.book.defNext,lastDay:'',crop:null}},
- crops:{},rep:[],books:[],
+ crops:{},rep:[],books:[],harvests:{lab:[],music:[],book:[]},
  rewards:['美濃焼カフェ・器めぐり','写真さんぽ','ゲーム1時間'],log:[]};
 
 let S=load();
-function load(){try{const r=localStorage.getItem(KEY);if(r){const s=JSON.parse(r);return Object.assign(JSON.parse(JSON.stringify(DEF)),s);}}catch(e){}return JSON.parse(JSON.stringify(DEF));}
+function load(){
+  let s=null;
+  try{const r=localStorage.getItem(KEY); if(r) s=Object.assign(JSON.parse(JSON.stringify(DEF)),JSON.parse(r));}catch(e){}
+  if(!s) s=JSON.parse(JSON.stringify(DEF));
+  if(!s.harvests){ // migrate old save: ranks & done-lists -> harvest log
+    s.harvests={lab:[],music:[],book:[]};
+    CROPS.forEach(c=>{if((s.crops||{})[c.id]>0) s.harvests.lab.push({t:c.name,sp:c.sp,d:''});});
+    (s.rep||[]).forEach(it=>{if(it.done) s.harvests.music.push({t:it.title,sp:'peach',d:''});});
+    (s.books||[]).forEach(it=>{if(it.done) s.harvests.book.push({t:it.title,sp:'strawberry',d:''});});
+  }
+  ['lab','music','book'].forEach(k=>{const c=s.fac[k].crop; if(c&&c.id) s.fac[k].crop={label:c.label||'',water:c.water||0};});
+  return s;
+}
 function save(){localStorage.setItem(KEY,JSON.stringify(S));}
 const $=id=>document.getElementById(id);
 function todayStr(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
@@ -666,8 +675,8 @@ function renderVillageTab(){
   const rows=keys.map((k,i)=>{
     const f=S.fac[k], match=FACS[k].slot===slot, top=i===0&&match;
     let ex;
-    if(f.crop){ex=f.crop.water>=WATER_NEED?(sprSVG('spark',11)+' '+esc(f.crop.label)+' が実ってる！収穫しよう'):(sprSVG('sprout',11)+' '+esc(f.crop.label)+'：あと'+(WATER_NEED-f.crop.water)+'回で実り');}
-    else{ex='畑があいています（タップしてたねまき）';}
+    if(!f.crop) autoPlant(k);
+    ex=f.crop.water>=WATER_NEED?(sprSVG('spark',11)+' '+esc(cropName(k,f.crop))+' が実ってる！収穫しよう'):(sprSVG('sprout',11)+' あと'+(WATER_NEED-f.crop.water)+'回の水やりで収穫');
     const tag='<span class="slottag">'+SLOTS[FACS[k].slot].ic+SLOTS[FACS[k].slot].label+'・約'+FACS[k].mins+'分</span>';
     return '<div class="qrow'+(top?' qtop':'')+'" data-f="'+k+'">'+
       (top?'<div class="nowbadge">▶ いまはコレ（'+sm.ic+sm.label+'）</div>':'')+
@@ -686,31 +695,18 @@ function renderVillageTab(){
 }
 function esc(s){return String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
 function renderZukan(){
+  const cnt={}; S.harvests.lab.forEach(hv=>{cnt[hv.sp]=(cnt[hv.sp]||0)+1;});
   $('cropGrid').innerHTML=CROPS.map(c=>{
-    const r=S.crops[c.id]||0;
-    return '<div class="crop r'+r+'" data-c="'+c.id+'"><span class="em">'+sprSVG(c.sp,30)+'</span><span class="nm">'+c.name+'</span><span class="rk">'+RANKS[r]+'</span></div>';
-  }).join('');
-  document.querySelectorAll('.crop').forEach(el=>el.onclick=()=>{
-    const id=el.dataset.c; const r=S.crops[id]||0; const nr=(r+1)%4;
-    if(nr===0 && !confirm('この作物を「未収穫」にもどしますか？')) return;
-    S.crops[id]=nr;
-    if(r===0&&nr===1){S.xp+=30;addLog('🌾 '+CROPS.find(x=>x.id===id).name+' を収穫！(+30XP)');confetti();toast('収穫！ +30XP');}
-    save();renderAll();
-  });
-  renderChecklist('repList',S.rep,sprSVG('sprout',15),sprSVG('peach',15),'ひけた！','レパートリー入り +30XP');
-  renderChecklist('bookList',S.books,sprSVG('sprout',15),sprSVG('strawberry',15),'読了！','蔵書入り +30XP');
+    const n=cnt[c.sp]||0;
+    return '<div class="crop '+(n?'r3':'r0')+'"><span class="em">'+sprSVG(c.sp,30)+'</span><span class="rk">'+(n?('×'+n):'？')+'</span></div>';
+  }).join('')+'<div class="crop r3" style="cursor:default;"><span class="em" style="font-size:20px; line-height:34px;">'+S.harvests.lab.length+'</span><span class="nm">とれ高 合計</span></div>';
+  renderHarvestList('repList',S.harvests.music);
+  renderHarvestList('bookList',S.harvests.book);
 }
-function renderChecklist(listId,arr,em0,em1,pillTxt,doneMsg){
-  $(listId).innerHTML=arr.length?arr.map((it,i)=>
-    '<li class="'+(it.done?'done':'')+'"><span>'+(it.done?em1:em0)+'</span><span class="t">'+esc(it.title)+'</span>'+
-    (it.done?'<span class="pill">達成</span>':'<button class="pill" data-i="'+i+'">'+pillTxt+'</button>')+
-    '<button class="pill" data-del="'+i+'">×</button></li>').join('')
-   :'<li><span class="t"><small class="dim">まだ登録がありません</small></span></li>';
-  $(listId).querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>{
-    const t=arr[b.dataset.i].title; arr[b.dataset.i].done=true; S.xp+=30;
-    Object.keys(S.fac).forEach(k=>{if(S.fac[k].crop&&S.fac[k].crop.label===t){S.fac[k].crop=null;autoPlant(k);}});
-    addLog('🌾 '+t+'（'+doneMsg+'）'); confetti(); save(); renderAll();});
-  $(listId).querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(confirm('削除しますか？')){arr.splice(b.dataset.del,1);save();renderAll();}});
+function renderHarvestList(listId,arr){
+  $(listId).innerHTML=arr.length?arr.slice().reverse().map(hv=>
+    '<li class="done"><span>'+sprSVG(hv.sp||'wheat',15)+'</span><span class="t">'+esc(hv.t||'ぶじ収穫')+'</span>'+(hv.d?'<small class="dim">'+esc(hv.d.slice(5))+'</small>':'')+'</li>').join('')
+   :'<li><span class="t"><small class="dim">水やり'+WATER_NEED+'回ごとに、ここに収穫が貯まります</small></span></li>';
 }
 function renderTitleTab(){
   $('fragN').textContent=S.frags;
@@ -736,45 +732,33 @@ function openSheet(k){
   $('nextInput').value=f.next;
   $('cropBlock').innerHTML=cropBlockHTML(k);
   const hb=$('harvestBtn'); if(hb) hb.onclick=()=>harvest(k);
-  const rb=$('replantBtn'); if(rb) rb.onclick=()=>{
-    if(confirm('いまの作物をあきらめて、たねを変えますか？（水やりは失われます）')){S.fac[k].crop=null; save(); renderScene(); openSheet(k);}
-  };
-  const pb=$('plantBtn'); if(pb) pb.onclick=()=>{
-    const v=$('plantSel').value;
-    if(k==='lab'){const c=CROPS.find(c=>c.id===v); S.fac[k].crop={id:v,label:c.name,water:0};}
-    else{const arr=k==='music'?S.rep:S.books; S.fac[k].crop={label:arr[v].title,water:0};}
-    addLog('🌱 '+FACS[k].name+'の畑に「'+S.fac[k].crop.label+'」のたねをまいた');
-    save(); renderScene(); renderVillageTab(); openSheet(k); toast('🌱 たねをまいた！');
+  const nb=$('nameBtn'); if(nb) nb.onclick=()=>{
+    const v=prompt('育てているものに名前をつける？（任意・空でもOK）', S.fac[k].crop.label||'');
+    if(v!==null){S.fac[k].crop.label=v.trim(); save(); openSheet(k); renderVillageTab();}
   };
   $('doSession').disabled=S.slotsUsed>=3;
   $('doSession').innerHTML=S.slotsUsed>=3?'きょうは村じゅうが満足（また明日）':(sprSVG('drop',14)+' 水やり＝1セッション完了（'+sprSVG('heart',13)+'-1）');
   $('sheet').classList.add('open');$('sheetBack').classList.add('open');
 }
 function cropBlockHTML(k){
-  const f=S.fac[k];
-  if(f.crop){
-    const st=cropStage(f.crop.water);
-    let pips=''; for(let i=0;i<WATER_NEED;i++) pips+='<i class="'+(i<f.crop.water?'on':'')+'"></i>';
-    let h='<b>いまの畑：</b>'+cropEmoji(k,f.crop,st)+' '+esc(f.crop.label)+'<br>'+
-      '💧 <span class="waterpips">'+pips+'</span> '+f.crop.water+'/'+WATER_NEED+'<br>';
-    h+= st>=4 ? '<button id="harvestBtn" style="margin-top:6px;">'+sprSVG('wheat',14)+' 収穫する（+30XP・図鑑へ）</button> '
-              : '<small class="dim">あと'+(WATER_NEED-f.crop.water)+'回の水やりで実ります</small> ';
-    h+='<button id="replantBtn" class="pill">たねを変える</button>';
-    return h;
-  }
-  let opts='';
-  if(k==='lab'){CROPS.filter(c=>!(S.crops[c.id]>0)).forEach(c=>{opts+='<option value="'+c.id+'">'+c.em+' '+c.name+'</option>';});}
-  else{(k==='music'?S.rep:S.books).forEach((it,i)=>{if(!it.done) opts+='<option value="'+i+'">'+esc(it.title)+'</option>';});}
-  if(!opts) return '<b>畑があいています。</b><br><small class="dim">'+(k==='lab'?'ぜんぶ収穫ずみ！おみごと！':'図鑑タブで'+(k==='music'?'曲':'本')+'を登録すると、ここにたねをまけます')+'</small>';
-  return '<b>たねをまく：</b><div class="inline" style="margin-top:6px;"><select id="plantSel" style="flex:1;">'+opts+'</select><button id="plantBtn">まく</button></div>';
+  const f=S.fac[k]; if(!f.crop) autoPlant(k);
+  const st=cropStage(f.crop.water);
+  let pips=''; for(let i=0;i<WATER_NEED;i++) pips+='<i class="'+(i<f.crop.water?'on':'')+'"></i>';
+  let h='<b>いまの畑：</b>'+cropEmoji(k,f.crop,st)+' '+esc(cropName(k,f.crop))+'<br>'+
+    '💧 <span class="waterpips">'+pips+'</span> '+f.crop.water+'/'+WATER_NEED+'<br>';
+  h+= st>=4 ? '<button id="harvestBtn" style="margin-top:6px;">'+sprSVG('wheat',14)+' 収穫する（+30XP）</button> '
+            : '<small class="dim">あと'+(WATER_NEED-f.crop.water)+'回で実ります</small> ';
+  h+='<button id="nameBtn" class="pill">名前をつける</button>';
+  return h;
 }
 function harvest(k){
   const f=S.fac[k]; if(!f.crop||f.crop.water<WATER_NEED) return;
-  const lbl=f.crop.label;
-  if(k==='lab'){S.crops[f.crop.id]=Math.max(S.crops[f.crop.id]||0,1);}
-  else{const arr=k==='music'?S.rep:S.books; const it=arr.find(x=>x.title===lbl&&!x.done); if(it) it.done=true;}
+  let name=prompt('なにが実った？（曲名・本・単元など。空のままでもOK）', f.crop.label||'');
+  if(name===null) name=f.crop.label||'';
+  const sp=nextVeg(k);
+  S.harvests[k].push({t:name.trim(), sp:sp, d:todayStr()});
   S.xp+=30; f.crop=null; autoPlant(k);
-  addLog('🌾 '+lbl+' を収穫した！(+30XP)');
+  addLog('🌾 '+(name.trim()||FACS[k].name+'のめぐみ')+' を収穫した！(+30XP)');
   confetti(); toast('🌾 収穫！ +30XP'); save(); renderAll(); openSheet(k);
 }
 function closeSheet(){ $('sheet').classList.remove('open');$('sheetBack').classList.remove('open');
@@ -826,8 +810,6 @@ $('claimTitle').onclick=()=>{
 };
 
 /* ---- inputs ---- */
-$('repAdd').onclick=()=>{const v=$('repInput').value.trim();if(!v)return;S.rep.push({title:v,done:false});$('repInput').value='';addLog('🎵 練習曲「'+v+'」を登録');save();renderAll();};
-$('bookAdd').onclick=()=>{const v=$('bookInput').value.trim();if(!v)return;S.books.push({title:v,done:false});$('bookInput').value='';addLog('📖 「'+v+'」を読みはじめた');save();renderAll();};
 $('rewardAdd').onclick=()=>{const v=$('rewardInput').value.trim();if(!v)return;S.rewards.push(v);$('rewardInput').value='';save();renderAll();};
 $('nameSave').onclick=()=>{const v=$('nameInput').value.trim();if(v){S.name=v;save();renderAll();toast('村の名前を「'+v+'」にした');}};
 
